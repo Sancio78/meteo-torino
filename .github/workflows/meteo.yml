@@ -1,0 +1,41 @@
+name: Meteo Cantiere Torino
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # ogni 15 minuti, 24 ore su 24 (gratuito senza limiti nei progetti pubblici)
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Invia un messaggio di prova su Telegram"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  controllo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scarica i file del progetto
+        uses: actions/checkout@v4
+
+      - name: Prepara Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Controlla il meteo e invia eventuali alert
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST_MESSAGE: ${{ inputs.test == true && '1' || '0' }}
+          SOGLIA_MMH: "10"   # soglia allerta pioggia in mm/h — modificabile
+        run: python monitor.py
+
+      - name: Ricorda lo stato per il prossimo controllo
+        run: |
+          git config user.name "meteo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "aggiorna stato meteo" && git push)
